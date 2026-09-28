@@ -1,7 +1,7 @@
 import { BraintrustExporter } from '@mastra/braintrust';
 import { Mastra } from '@mastra/core/mastra';
 import { LibSQLStore } from '@mastra/libsql';
-import { MastraStorageExporter, Observability } from '@mastra/observability';
+import { MastraPlatformExporter, MastraStorageExporter, Observability } from '@mastra/observability';
 import { docsAgent } from './agents/docs-agent';
 import { readDocs, searchDocs } from './tools/docs-tools';
 
@@ -21,6 +21,7 @@ export const mastra = new Mastra({
         serviceName: 'mastra-docs-agent',
         exporters: [
           new MastraStorageExporter(),
+          new MastraPlatformExporter(),
           new BraintrustExporter({
             projectName: process.env.BRAINTRUST_PROJECT_NAME || 'mastra-docs-agent',
           }),

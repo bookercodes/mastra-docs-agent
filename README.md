@@ -33,6 +33,8 @@ This project has no crawler, embeddings, vector database, workflows, or evals. I
 
 Agent and tool traces are exported through `MastraStorageExporter` to the same database as conversation history. Inspect new runs in Studio's Observability view.
 
+`MastraPlatformExporter` also sends telemetry to Mastra Platform using its runtime environment configuration. Outside Platform, configure `MASTRA_PLATFORM_ACCESS_TOKEN` and `MASTRA_PROJECT_ID` to enable this exporter; without an access token it stays disabled.
+
 To also send traces to Braintrust, set `BRAINTRUST_API_KEY` in `.env`. The Braintrust project defaults to `mastra-docs-agent`; override it with `BRAINTRUST_PROJECT_NAME`. Without a Braintrust key, its exporter is disabled and database trace storage continues.
 
 ## Build
