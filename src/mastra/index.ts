@@ -1,28 +1,20 @@
 import { BraintrustExporter } from '@mastra/braintrust';
 import { Mastra } from '@mastra/core/mastra';
-import { MastraCompositeStore } from '@mastra/core/storage';
-import { DuckDBStore } from '@mastra/duckdb';
 import { LibSQLStore } from '@mastra/libsql';
 import { MastraStorageExporter, Observability } from '@mastra/observability';
 import { docsAgent } from './agents/docs-agent';
 import { readDocs, searchDocs } from './tools/docs-tools';
 
+export const storage = new LibSQLStore({
+  id: 'mastra-storage',
+  url: process.env.TURSO_DATABASE_URL || 'file:./mastra.db',
+  authToken: process.env.TURSO_AUTH_TOKEN || undefined,
+});
+
 export const mastra = new Mastra({
-  bundler: {
-    externals: ['@duckdb/node-bindings'],
-  },
   agents: { docsAgent },
   tools: { searchDocs, readDocs },
-  storage: new MastraCompositeStore({
-    id: 'composite-storage',
-    default: new LibSQLStore({
-      id: 'mastra-storage',
-      url: 'file:./mastra.db',
-    }),
-    domains: {
-      observability: new DuckDBStore({ path: './mastra.duckdb' }).observability,
-    },
-  }),
+  storage,
   observability: new Observability({
     configs: {
       default: {

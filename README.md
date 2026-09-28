@@ -11,7 +11,7 @@ pnpm install
 cp .env.example .env
 ```
 
-Set `OPENAI_API_KEY` in `.env`, then start Mastra Studio:
+Set `OPENAI_API_KEY` in `.env`, then start Mastra Studio. Locally, storage defaults to `file:./mastra.db`. For deployment, inject `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` to use your hosted database:
 
 ```sh
 pnpm run dev
@@ -27,13 +27,13 @@ Open [localhost:4111](http://localhost:4111), select **Mastra Docs**, and ask:
 
 The agent searches titles and URLs in [mastra.ai/llms.txt](https://mastra.ai/llms.txt), reads the relevant Markdown pages, and cites them in its answers. Index searches return up to 20 matches, and the index is cached in memory for five minutes. Page content is fetched on demand. Both tools use a 15-second request timeout; page reads are restricted to URLs in the official index.
 
-The model is `openai/gpt-5.6-terra`, configured in `src/mastra/agents/docs-agent.ts`, with up to eight steps per response. Basic conversation history keeps the last ten messages available for follow-ups and is persisted locally in `mastra.db`. Studio handles conversation identifiers automatically; API callers should supply their own memory thread and resource IDs.
+The model is `openai/gpt-5.6-terra`, configured in `src/mastra/agents/docs-agent.ts`, with up to eight steps per response. Basic conversation history keeps the last ten messages available for follow-ups and is persisted in local SQLite or the configured Turso database. Studio handles conversation identifiers automatically; API callers should supply their own memory thread and resource IDs.
 
 This project has no crawler, embeddings, vector database, workflows, or evals. It requires internet access to Mastra's documentation and the model provider.
 
-Agent and tool traces are exported locally through `MastraStorageExporter` to `mastra.duckdb`. A `MastraCompositeStore` routes observability to DuckDB and keeps conversation history in libSQL (`mastra.db`). Inspect new runs in Studio's Observability view; no external tracing service is required for local traces.
+Agent and tool traces are exported through `MastraStorageExporter` to the same database as conversation history. Inspect new runs in Studio's Observability view.
 
-To also send traces to Braintrust, set `BRAINTRUST_API_KEY` in `.env`. The Braintrust project defaults to `mastra-docs-agent`; override it with `BRAINTRUST_PROJECT_NAME`. Without a Braintrust key, its exporter is disabled and local tracing continues.
+To also send traces to Braintrust, set `BRAINTRUST_API_KEY` in `.env`. The Braintrust project defaults to `mastra-docs-agent`; override it with `BRAINTRUST_PROJECT_NAME`. Without a Braintrust key, its exporter is disabled and database trace storage continues.
 
 ## Build
 
