@@ -1,7 +1,7 @@
 {
   "name": "mastra-docs-agent",
   "version": "1.0.0",
-  "description": "A general-purpose Mastra agent with a local workspace, shell tools, memory, task tracking, web access, and recurring schedules.",
+  "description": "A focused agent that answers Mastra questions using official documentation.",
   "main": "index.js",
   "private": true,
   "scripts": {
@@ -17,6 +17,7 @@
     "node": ">=22.13.0"
   },
   "dependencies": {
+    "@mastra/braintrust": "^1.3.16",
     "@mastra/core": "1.71.0",
     "@mastra/duckdb": "1.11.1",
     "@mastra/libsql": "1.23.3",
