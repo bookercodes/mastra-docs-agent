@@ -6,7 +6,7 @@ export const docsAgent = new Agent({
   id: 'mastra-docs-agent',
   name: 'Mastra Docs',
   description: 'Answers Mastra questions using current official documentation, with source links and practical TypeScript examples.',
-  model: 'openai/gpt-5.6-terra',
+  model: 'openrouter/qwen/qwen3.8-27b',
   instructions: `You help developers build with Mastra using its official documentation.
 
 For technical questions, search the documentation index with searchDocs, then use
