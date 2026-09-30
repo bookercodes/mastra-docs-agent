@@ -14,4 +14,3 @@ src/mastra/public/
 *.duckdb.wal
 .env.replay
 replay-state.json*
-replay.lock

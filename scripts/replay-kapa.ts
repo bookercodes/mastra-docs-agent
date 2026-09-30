@@ -1,6 +1,6 @@
 /**
- * Run once: node --experimental-strip-types --env-file=.env.replay scripts/replay-kapa.ts
- * Requires Node 22.13+. No npm dependencies. Schedule with flock; see .env.replay.example.
+ * Run worker: node --experimental-strip-types --env-file=.env.replay scripts/replay-kapa.ts
+ * Requires Node 22.13+. No npm dependencies. Add --once for a single poll.
  * Kapa contract: https://docs.kapa.ai/api/reference/query-v-1-projects-threads-list
  */
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
@@ -57,7 +57,44 @@ function log(event: string, fields: Record<string, unknown> = {}) {
   console.log(JSON.stringify({ time: new Date().toISOString(), event, ...fields }));
 }
 
-async function main() {
+class PollError extends Error {
+  retryAfterMs: number;
+  constructor(message: string, retryAfterMs = 0) {
+    super(message);
+    this.retryAfterMs = retryAfterMs;
+  }
+}
+
+function retryAfter(response: Response): number {
+  const value = response.headers.get('retry-after');
+  if (!value) return 0;
+  const milliseconds = /^\d+$/.test(value) ? Number(value) * 1_000 : Date.parse(value) - Date.now();
+  return Number.isFinite(milliseconds) ? Math.max(0, milliseconds) : 0;
+}
+
+let stopping = false;
+let wake: (() => void) | undefined;
+function stop(signal: string) {
+  if (stopping) return;
+  stopping = true;
+  log('stopping', { signal, message: 'Finishing the active request and saving progress.' });
+  wake?.();
+}
+
+async function wait(milliseconds: number) {
+  // Chunk very long Retry-After values to avoid Node's timer overflow limit.
+  const until = Date.now() + milliseconds;
+  while (!stopping && Date.now() < until) {
+    await new Promise<void>(resolve => {
+      const timer = setTimeout(done, Math.min(until - Date.now(), 2_147_483_647));
+      function done() { clearTimeout(timer); wake = undefined; resolve(); }
+      wake = done;
+      if (stopping) done();
+    });
+  }
+}
+
+async function runCycle() {
   const apiKey = required('KAPA_API_KEY');
   const project = required('KAPA_PROJECT_ID');
   const target = new URL(required('MASTRA_AGENT_URL')).href;
@@ -94,13 +131,22 @@ async function main() {
   await save();
 
   async function get<T>(url: URL): Promise<T> {
-    const response = await fetch(url, {
-      headers: { 'X-API-KEY': apiKey, Accept: 'application/json' },
-      signal: AbortSignal.timeout(timeout),
-      redirect: 'error',
-    });
-    if (!response.ok) throw new Error(`Kapa GET ${url.pathname}: HTTP ${response.status}`);
-    return await response.json() as T;
+    try {
+      const response = await fetch(url, {
+        headers: { 'X-API-KEY': apiKey, Accept: 'application/json' },
+        signal: AbortSignal.timeout(timeout),
+        redirect: 'error',
+      });
+      if (!response.ok) {
+        const delay = retryAfter(response);
+        await response.body?.cancel();
+        throw new PollError(`Kapa GET ${url.pathname}: HTTP ${response.status}`, delay);
+      }
+      return await response.json() as T;
+    } catch (error) {
+      if (error instanceof PollError) throw error;
+      throw new PollError(`Kapa GET ${url.pathname}: ${(error as Error).message}`);
+    }
   }
 
   // An interrupted POST may already have executed. Never automatically resend it.
@@ -114,6 +160,7 @@ async function main() {
   let fetched = 0;
   const additions: Turn[] = [];
   do {
+    if (stopping) return { failures: 0, retry: false, retryAfterMs: 0 };
     const url = new URL(`query/v1/projects/${encodeURIComponent(project)}/threads/`, base);
     // Overlap polling windows to cover indexing delays and boundary timestamps.
     url.searchParams.set('updated_since', new Date(Math.max(Date.parse(state.startAt), Date.parse(state.updatedSince) - 120_000)).toISOString());
@@ -126,6 +173,7 @@ async function main() {
       throw new Error('Unexpected Kapa thread-list response; expected results and next_cursor.');
     }
     for (let thread of page.results) {
+      if (stopping) return { failures: 0, retry: false, retryAfterMs: 0 };
       if (!thread.id || !Array.isArray(thread.question_answers)) throw new Error('Invalid Kapa thread.');
       if (skip.has(thread.id)) continue;
       // List results omit query_type and can truncate turns; fetch details when needed.
@@ -171,7 +219,10 @@ async function main() {
   let sent = 0;
   let attempted = 0;
   let failures = blocked.size;
+  let retry = false;
+  let retryAfterMs = 0;
   for (const turn of [...state.queue]) {
+    if (stopping) break;
     if (skip.has(turn.thread)) continue;
     if (blocked.has(turn.thread)) {
       if (turn.status === 'uncertain') log('needs-review', { threadId: turn.thread, questionAnswerId: turn.id, stateFile });
@@ -181,7 +232,13 @@ async function main() {
     attempted++;
     turn.status = 'sending';
     await save();
+    if (stopping) {
+      turn.status = 'queued';
+      await save();
+      break;
+    }
     const started = Date.now();
+    let rateLimited = false;
     try {
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (process.env.MASTRA_AUTH_TOKEN) headers.Authorization = `Bearer ${process.env.MASTRA_AUTH_TOKEN}`;
@@ -193,6 +250,8 @@ async function main() {
         }),
       });
       if (!response.ok) {
+        rateLimited = response.status === 429;
+        retryAfterMs = Math.max(retryAfterMs, retryAfter(response));
         // These statuses reject the request before generation. Other failures may be partial.
         turn.status = [400, 401, 403, 404, 422, 429].includes(response.status) ? 'queued' : 'uncertain';
         await response.body?.cancel();
@@ -206,8 +265,10 @@ async function main() {
       if (turn.status === 'sending') turn.status = 'uncertain';
       blocked.add(turn.thread);
       failures++;
+      retry = true;
       await save();
       log('failed', { threadId: turn.thread, questionAnswerId: turn.id, status: turn.status, error: (error as Error).message });
+      if (rateLimited) break;
       continue;
     }
     // Checkpoint each successful turn. A disk failure must stop the run here.
@@ -218,7 +279,42 @@ async function main() {
     log('replayed', { threadId: turn.thread, questionAnswerId: turn.id, seconds: (Date.now() - started) / 1_000 });
   }
   log('finished', { sent, remaining: state.queue.length, failures });
-  if (failures) process.exitCode = 1;
+  return { failures, retry, retryAfterMs };
+}
+
+async function main() {
+  const once = process.argv.includes('--once');
+  const interval = integer('REPLAY_POLL_SECONDS', 60) * 1_000;
+  process.on('SIGINT', stop);
+  process.on('SIGTERM', stop);
+  log('started', { mode: once ? 'once' : 'worker', pollSeconds: interval / 1_000 });
+  let consecutiveFailures = 0;
+  while (!stopping) {
+    const started = Date.now();
+    let retry = false;
+    let retryAfterMs = 0;
+    try {
+      const result = await runCycle();
+      retry = result.retry;
+      retryAfterMs = result.retryAfterMs;
+      if (once && result.failures) process.exitCode = 1;
+    } catch (error) {
+      // Configuration, invalid state and checkpoint-write errors must stop the worker.
+      if (!(error instanceof PollError)) throw error;
+      log('poll-failed', { error: error.message });
+      retry = true;
+      retryAfterMs = error.retryAfterMs;
+      if (once) process.exitCode = 1;
+    }
+    if (once || stopping) break;
+    consecutiveFailures = retry ? consecutiveFailures + 1 : 0;
+    const delay = retry
+      ? Math.max(interval, Math.min(900_000, interval * 2 ** Math.min(consecutiveFailures - 1, 10)), retryAfterMs)
+      : Math.max(0, interval - (Date.now() - started));
+    log('waiting', { seconds: Math.ceil(delay / 1_000), backoff: retry });
+    await wait(delay);
+  }
+  log('stopped');
 }
 
 main().catch(error => {
