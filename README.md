@@ -11,7 +11,7 @@ pnpm install
 cp .env.example .env
 ```
 
-Set `OPENROUTER_API_KEY` and `DATABASE_URL` in `.env`, then start Mastra Studio. Both conversation history and observability use Postgres vNext. For local development, use a Postgres connection reachable from your machine. Mastra Platform's hosted Postgres injects `DATABASE_URL` into your deployment; its private-network connection is only reachable from the deployed server.
+Set `OPENROUTER_API_KEY`, `TURSO_DATABASE_URL`, and `TURSO_AUTH_TOKEN` in `.env`, then start Mastra Studio. Storage uses hosted Turso through `LibSQLStore`. Mastra Platform's hosted Turso injects the database URL and auth token into your deployment.
 
 ```sh
 pnpm run dev
@@ -27,11 +27,11 @@ Open [localhost:4111](http://localhost:4111), select **Mastra Docs**, and ask:
 
 The agent searches titles and URLs in [mastra.ai/llms.txt](https://mastra.ai/llms.txt), reads the relevant Markdown pages, and cites them in its answers. Index searches return up to 20 matches, and the index is cached in memory for five minutes. Page content is fetched on demand. Both tools use a 15-second request timeout; page reads are restricted to URLs in the official index.
 
-The model is `openrouter/qwen/qwen3.8-27b`, configured in `src/mastra/agents/docs-agent.ts`, with up to eight steps per response. Basic conversation history keeps the last ten messages available for follow-ups and is persisted in Postgres. Studio handles conversation identifiers automatically; API callers should supply their own memory thread and resource IDs.
+The model is `openrouter/qwen/qwen3.8-27b`, configured in `src/mastra/agents/docs-agent.ts`, with up to eight steps per response. Basic conversation history keeps the last ten messages available for follow-ups and is persisted in Turso. Studio handles conversation identifiers automatically; API callers should supply their own memory thread and resource IDs.
 
 This project has no crawler, embeddings, vector database, workflows, or evals. It requires internet access to Mastra's documentation and the model provider.
 
-`MastraStorageExporter` writes agent and tool traces to `PostgresStoreVNext`, using the same `DATABASE_URL` as application storage. Sharing the same Postgres instance for both emits a workload-isolation warning; a separate observability instance is recommended for production. Existing Turso data is not automatically migrated. Inspect traces in Studio's Observability view.
+`MastraStorageExporter` targets the configured `LibSQLStore`. Storage uses `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN`, with no local-file fallback. Switching databases does not automatically migrate existing data.
 
 `MastraPlatformExporter` also sends telemetry to Mastra Platform using its runtime environment configuration. Outside Platform, configure `MASTRA_PLATFORM_ACCESS_TOKEN` and `MASTRA_PROJECT_ID` to enable this exporter; without an access token it stays disabled.
 
