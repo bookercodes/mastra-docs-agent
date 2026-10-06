@@ -1,6 +1,7 @@
 import { Agent } from '@mastra/core/agent';
 import { Memory } from '@mastra/memory';
 import { readDocs, searchDocs } from '../tools/docs-tools';
+import { toneScorer } from '../scorers/tone-scorer';
 
 export const docsAgent = new Agent({
   id: 'mastra-docs-agent',
@@ -37,4 +38,5 @@ offer to help with a Mastra question without calling tools.`,
   defaultOptions: { maxSteps: 8 },
   memory: new Memory({ options: { lastMessages: 10 } }),
   tools: { searchDocs, readDocs },
+  scorers: { tone: { scorer: toneScorer, sampling: { type: 'ratio', rate: 1 } } },
 });
