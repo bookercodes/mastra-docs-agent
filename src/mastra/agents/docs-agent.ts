@@ -2,6 +2,7 @@ import { Agent } from '@mastra/core/agent';
 import { Memory } from '@mastra/memory';
 import { readDocs, searchDocs } from '../tools/docs-tools';
 import { toneScorer } from '../scorers/tone-scorer';
+import { answerSimilarityScorer } from '../scorers/answer-similarity-scorer';
 
 export const docsAgent = new Agent({
   id: 'mastra-docs-agent',
@@ -38,5 +39,9 @@ offer to help with a Mastra question without calling tools.`,
   defaultOptions: { maxSteps: 8 },
   memory: new Memory({ options: { lastMessages: 10 } }),
   tools: { searchDocs, readDocs },
-  scorers: { tone: { scorer: toneScorer, sampling: { type: 'ratio', rate: 1 } } },
+  scorers: {
+    tone: { scorer: toneScorer, sampling: { type: 'ratio', rate: 1 } },
+    // Available for experiments; zero sampling prevents live execution.
+    answerSimilarity: { scorer: answerSimilarityScorer, sampling: { type: 'ratio', rate: 0 } },
+  },
 });

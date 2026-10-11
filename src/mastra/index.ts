@@ -1,4 +1,5 @@
 import { BraintrustExporter } from '@mastra/braintrust';
+import { currentSpan } from 'braintrust';
 import { ArizeExporter } from '@mastra/arize';
 import { LangfuseExporter } from '@mastra/langfuse';
 import { LangSmithExporter } from '@mastra/langsmith';
@@ -9,6 +10,8 @@ import { MastraPlatformExporter, MastraStorageExporter, Observability } from '@m
 import { docsAgent } from './agents/docs-agent';
 import { readDocs, searchDocs } from './tools/docs-tools';
 import { toneScorer } from './scorers/tone-scorer';
+import { answerSimilarityScorer } from './scorers/answer-similarity-scorer';
+import { referenceAnswerQualityScorer } from './scorers/reference-answer-quality-scorer';
 
 const hostedStorage = new LibSQLStore({
   id: 'hosted-storage',
@@ -28,7 +31,7 @@ export const storage = process.env.NODE_ENV === 'development'
 export const mastra = new Mastra({
   agents: { docsAgent },
   tools: { searchDocs, readDocs },
-  scorers: { toneScorer },
+  scorers: { toneScorer, answerSimilarityScorer, referenceAnswerQualityScorer },
   storage,
   observability: new Observability({
     configs: {
@@ -41,6 +44,7 @@ export const mastra = new Mastra({
           new ArizeExporter(),
           new LangfuseExporter(),
           new BraintrustExporter({
+            currentSpan,
             projectName: process.env.BRAINTRUST_PROJECT_NAME || 'mastra-docs-agent',
           }),
         ],

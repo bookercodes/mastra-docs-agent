@@ -27,11 +27,13 @@ Open [localhost:4111](http://localhost:4111), select **Mastra Docs**, and ask:
 
 The agent searches titles and URLs in [mastra.ai/llms.txt](https://mastra.ai/llms.txt), reads the relevant Markdown pages, and cites them in its answers. Index searches return up to 20 matches, and the index is cached in memory for five minutes. Page content is fetched on demand. Both tools use a 15-second request timeout; page reads are restricted to URLs in the official index.
 
-The model is `openrouter/qwen/qwen3.8-27b`, configured in `src/mastra/agents/docs-agent.ts`, with up to eight steps per response. Basic conversation history keeps the last ten messages available for follow-ups. Production persists messages in Turso; development keeps them in in-memory LibSQL until the server restarts. Studio handles conversation identifiers automatically; API callers should supply their own memory thread and resource IDs.
+The model is `openrouter/openai/gpt-5.6-sol`, configured in `src/mastra/agents/docs-agent.ts`, with up to eight steps per response. Basic conversation history keeps the last ten messages available for follow-ups. Production persists messages in Turso; development keeps them in in-memory LibSQL until the server restarts. Studio handles conversation identifiers automatically; API callers should supply their own memory thread and resource IDs.
 
 This project has no crawler, embeddings, vector database, or workflows. It requires internet access to Mastra's documentation and the model provider.
 
 The custom `tone` scorer uses Qwen through the existing OpenRouter credentials to judge every agent response. It makes one judge call per scored response and returns 1 for appropriate tone, 0.5 for a minor issue, or 0 for inappropriate tone, with a short explanation. It checks respectfulness and professionalism, not technical correctness. Responses without assistant text are skipped. The scorer is registered in `src/mastra/index.ts` and attached to the agent for live scoring; inspect its results in Studio. Local scores are ephemeral like other local data.
+
+The built-in answer-similarity scorer is also registered and attached to the agent, with live sampling set to zero. Select it explicitly in a dataset experiment to compare generated answers against each item's required `groundTruth`, using GPT-6 Astra through OpenRouter. Ordinary agent conversations do not run this scorer.
 
 In development (`NODE_ENV=development`), `MastraCompositeStore` routes only the datasets domain to hosted Turso. All other domains, including messages, experiments, and stored traces, use ephemeral in-memory LibSQL and reset on server restart. Dataset edits locally are immediately shared with production. Production uses hosted Turso for all domains. Existing local database files are not imported or deleted. External trace exporters remain enabled when their credentials are configured.
 
@@ -48,6 +50,28 @@ Additional exporters read their configuration from `.env` locally or your deploy
 | Langfuse | `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY` | `LANGFUSE_BASE_URL` (set to the URL for your region or self-hosted instance) |
 
 Each exporter stays disabled until its required configuration is present. For Arize Phoenix instead of AX, set `PHOENIX_COLLECTOR_ENDPOINT` and optionally `PHOENIX_API_KEY` and `PHOENIX_PROJECT_NAME`, leaving the Arize AX variables unset.
+
+## Reference answer quality
+
+Select **Reference Answer Quality** in a Mastra dataset experiment to evaluate essential coverage and agreement with each item's `groundTruth`. It uses GPT-6 Astra and scores PASS = 1, PARTIAL = 0.5, FAIL = 0; use 1 as the experiment's pass threshold. Missing or unusable questions/references are skipped. An empty final answer fails when the reference is usable.
+
+This scorer ignores style and word overlap, accepts concise equivalent answers, and flags unverifiable extra claims without automatically failing them. It evaluates the final assistant message only and provides a short rationale. Online sampling is zero, so normal agent conversations do not run it. Braintrust scorers remain separately selected in its UI.
+
+## Braintrust experiments
+
+Start the local remote eval server with the same `.env` used by Mastra:
+
+```sh
+pnpm run braintrust:remote
+```
+
+Set `BRAINTRUST_API_KEY` and optionally `BRAINTRUST_PROJECT_NAME`. This runs the registered agent directly; a separate Mastra development server is not needed.
+
+In your Braintrust project's **Settings → Remote evals**, create a remote eval source with URL `http://127.0.0.1:8300`. In a playground or new experiment, select the remote eval, choose your dataset and scorers, and run it. Keep the local process running while using it from your browser.
+
+Dataset `input` values must be question strings. For the Mastra vs. Kapa dataset, use Kapa's Markdown answer as Braintrust's `expected` field (the equivalent of Mastra's `groundTruth`). The remote does not copy or sync datasets automatically.
+
+Each question runs without conversation history, so examples cannot influence each other. The agent's online scorers are disabled for this remote; select experiment scorers in Braintrust instead. Runs use the agent's existing model, tools, and eight-step limit, with at most two concurrent tasks and a five-minute evaluation timeout. The endpoint is local to your machine; teammates need their own instance or a separately hosted remote.
 
 ## Build
 

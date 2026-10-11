@@ -7,7 +7,8 @@
   "scripts": {
     "dev": "mastra dev",
     "build": "mastra build",
-    "start": "mastra start"
+    "start": "mastra start",
+    "braintrust:remote": "NODE_ENV=development braintrust eval src/braintrust/docs-agent.eval.ts --env-file .env --dev --dev-host 127.0.0.1 --dev-port 8300"
   },
   "keywords": [],
   "author": "",
@@ -26,7 +27,8 @@
     "@mastra/libsql": "1.25.1",
     "@mastra/memory": "1.36.0",
     "@mastra/observability": "1.18.4",
-    "zod": "^4.4.3"
+    "braintrust": "3.37.2",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@types/node": "latest",
