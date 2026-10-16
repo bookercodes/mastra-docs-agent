@@ -114,3 +114,23 @@ Connect the repository to the replay service and use `scripts/replay.Dockerfile`
 - Inspect logs for `started`, `finished`, and `waiting`; investigate `needs-review` before retrying uncertain turns.
 
 For an existing replay, transfer its state file to the volume before the first run to preserve its checkpoint and deduplication history. Without an existing state file or `REPLAY_START_AT`, the first run starts from the preceding minute.
+
+## Langfuse remote experiments
+
+Set your Langfuse project keys and `LANGFUSE_BASE_URL` in `.env`.
+
+```sh
+npm run langfuse:remote
+# In another terminal:
+ngrok http 8301
+```
+
+In the dataset's **Run experiment → via Webhook → Configure**, enter:
+
+- URL: `https://YOUR-NGROK-HOST/experiments`
+- Payload: `{}` (or `{"runName":"my-experiment"}`)
+- Leave request signing off and custom headers empty.
+
+This local runner has no webhook authentication; anyone with the tunnel URL can trigger an experiment while it is open.
+
+The runner uses Langfuse's SDK to fetch the dataset, run the existing agent, and publish results with linked model/tool traces. Inputs must be question strings. Each item runs without conversation history or online Mastra scorers; configure evaluators in Langfuse separately. Keep both terminals open until the experiment completes. Errors are printed in the runner terminal; a forced stop can leave a partial experiment.
