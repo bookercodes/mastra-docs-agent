@@ -19,11 +19,14 @@ const hostedStorage = new LibSQLStore({
   authToken: process.env.TURSO_AUTH_TOKEN!,
 });
 
-// Share datasets with production; discard other local data on server restart.
+// Share datasets with production; persist other development data locally.
 export const storage = process.env.NODE_ENV === 'development'
   ? new MastraCompositeStore({
       id: 'development-storage',
-      default: new LibSQLStore({ id: 'local-storage', url: ':memory:' }),
+      default: new LibSQLStore({
+        id: 'local-storage',
+        url: `file:${process.env.INIT_CWD ?? process.cwd()}/mastra-dev.db`,
+      }),
       domains: { datasets: hostedStorage.stores?.datasets },
     })
   : hostedStorage;
