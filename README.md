@@ -11,7 +11,7 @@ pnpm install
 cp .env.example .env
 ```
 
-Set `OPENROUTER_API_KEY`, `TURSO_DATABASE_URL`, and `TURSO_AUTH_TOKEN` in `.env`, then start Mastra Studio. Use the same hosted Turso credentials as production so datasets are shared. Mastra Platform injects these credentials into your deployment.
+Set `MASTRA_GATEWAY_API_KEY`, `TURSO_DATABASE_URL`, and `TURSO_AUTH_TOKEN` in `.env`, then start Mastra Studio. Use the same hosted Turso credentials as production so datasets are shared. Mastra Platform injects these credentials into your deployment.
 
 ```sh
 pnpm run dev
@@ -27,13 +27,13 @@ Open [localhost:4111](http://localhost:4111), select **Mastra Docs**, and ask:
 
 The agent searches titles and URLs in [mastra.ai/llms.txt](https://mastra.ai/llms.txt), reads the relevant Markdown pages, and cites them in its answers. Index searches return up to 20 matches, and the index is cached in memory for five minutes. Page content is fetched on demand. Both tools use a 15-second request timeout; page reads are restricted to URLs in the official index.
 
-The model is `openrouter/openai/gpt-5.6-sol`, configured in `src/mastra/agents/docs-agent.ts`, with up to eight steps per response. Basic conversation history keeps the last ten messages available for follow-ups. Production persists messages in Turso; development keeps them in in-memory LibSQL until the server restarts. Studio handles conversation identifiers automatically; API callers should supply their own memory thread and resource IDs.
+All model calls use Mastra Gateway with `MASTRA_GATEWAY_API_KEY`. The agent model is `mastra/openai/gpt-5-nano`, configured in `src/mastra/agents/docs-agent.ts`, with up to eight steps per response. Basic conversation history keeps the last ten messages available for follow-ups. Production persists messages in Turso; development persists them in the local LibSQL file `mastra-dev.db`. Studio handles conversation identifiers automatically; API callers should supply their own memory thread and resource IDs.
 
 This project has no crawler, embeddings, vector database, or workflows. It requires internet access to Mastra's documentation and the model provider.
 
-The custom `tone` scorer uses Qwen through the existing OpenRouter credentials to judge every agent response. It makes one judge call per scored response and returns 1 for appropriate tone, 0.5 for a minor issue, or 0 for inappropriate tone, with a short explanation. It checks respectfulness and professionalism, not technical correctness. Responses without assistant text are skipped. The scorer is registered in `src/mastra/index.ts` and attached to the agent for live scoring; inspect its results in Studio. Local scores persist in `mastra-dev.db` across server restarts.
+The custom `tone` scorer uses Qwen through Mastra Gateway to judge every agent response. It makes one judge call per scored response and returns 1 for appropriate tone, 0.5 for a minor issue, or 0 for inappropriate tone, with a short explanation. It checks respectfulness and professionalism, not technical correctness. Responses without assistant text are skipped. The scorer is registered in `src/mastra/index.ts` and attached to the agent for live scoring; inspect its results in Studio. Local scores persist in `mastra-dev.db` across server restarts.
 
-The built-in answer-similarity scorer is also registered and attached to the agent, with live sampling set to zero. Select it explicitly in a dataset experiment to compare generated answers against each item's required `groundTruth`, using GPT-6 Astra through OpenRouter. Ordinary agent conversations do not run this scorer.
+The built-in answer-similarity scorer is also registered and attached to the agent, with live sampling set to zero. Select it explicitly in a dataset experiment to compare generated answers against each item's required `groundTruth`, using GPT-6 Astra through Mastra Gateway. Ordinary agent conversations do not run this scorer.
 
 In development (`NODE_ENV=development`), `MastraCompositeStore` routes only the datasets domain to hosted Turso. All other domains, including messages, experiments, scores, and stored traces, use a local LibSQL file at `mastra-dev.db` in the project working directory and survive server restarts. This file is excluded from Git. Dataset edits locally are immediately shared with production. Production uses hosted Turso for all domains. Existing local database files are not imported or deleted. External trace exporters remain enabled when their credentials are configured.
 
@@ -50,6 +50,10 @@ Additional exporters read their configuration from `.env` locally or your deploy
 | Langfuse | `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY` | `LANGFUSE_BASE_URL` (set to the URL for your region or self-hosted instance) |
 
 Each exporter stays disabled until its required configuration is present. For Arize Phoenix instead of AX, set `PHOENIX_COLLECTOR_ENDPOINT` and optionally `PHOENIX_API_KEY` and `PHOENIX_PROJECT_NAME`, leaving the Arize AX variables unset.
+
+## Abuse guardrail
+
+The built-in `PromptInjectionDetector` checks the latest message using `mastra/openai/gpt-5-nano` and its default detection instructions. Detected attacks or detector failures block the run with a Mastra tripwire.
 
 ## Reference answer quality
 
