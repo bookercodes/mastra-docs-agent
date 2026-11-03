@@ -14,3 +14,5 @@ src/mastra/public/
 *.duckdb.wal
 .env.replay
 replay-state.json*
+
+pnpm-lock.yaml
