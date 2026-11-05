@@ -27,7 +27,7 @@ Open [localhost:4111](http://localhost:4111), select **Mastra Docs**, and ask:
 
 The agent searches titles and URLs in [mastra.ai/llms.txt](https://mastra.ai/llms.txt), reads the relevant Markdown pages, and cites them in its answers. Index searches return up to 20 matches, and the index is cached in memory for five minutes. Page content is fetched on demand. Both tools use a 15-second request timeout; page reads are restricted to URLs in the official index.
 
-All model calls use Mastra Gateway with `MASTRA_GATEWAY_API_KEY`. The agent model is `mastra/openai/gpt-5-nano`, configured in `src/mastra/agents/docs-agent.ts`, with up to eight steps per response. Basic conversation history keeps the last ten messages available for follow-ups. Production persists messages in Turso; development persists them in the local LibSQL file `mastra-dev.db`. Studio handles conversation identifiers automatically; API callers should supply their own memory thread and resource IDs.
+All model calls use Mastra Gateway with `MASTRA_GATEWAY_API_KEY`. The agent model is `mastra/qwen/qwen3.8-27b`, configured in `src/mastra/agents/docs-agent.ts`, with up to eight steps per response. Basic conversation history keeps the last ten messages available for follow-ups. Production persists messages in Turso; development persists them in the local LibSQL file `mastra-dev.db`. Studio handles conversation identifiers automatically; API callers should supply their own memory thread and resource IDs.
 
 This project has no crawler, embeddings, vector database, or workflows. It requires internet access to Mastra's documentation and the model provider.
 
