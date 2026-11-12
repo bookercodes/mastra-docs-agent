@@ -4,6 +4,7 @@ minimumReleaseAgeExclude:
   - mastra
   - "@mastra/*"
 allowBuilds:
+  braintrust: false
   bufferutil: true
   esbuild: true
   protobufjs: true
