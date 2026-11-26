@@ -57,6 +57,12 @@ function log(event: string, fields: Record<string, unknown> = {}) {
   console.log(JSON.stringify({ time: new Date().toISOString(), event, ...fields }));
 }
 
+function logQuestion(event: string, question: string, detail: string) {
+  const text = question.trim().replace(/\s+/g, ' ');
+  const preview = text.split(' ').slice(0, 12).join(' ').slice(0, 100);
+  console.log(`${event.toUpperCase()} ${JSON.stringify(preview + (preview.length < text.length ? '…' : ''))} — ${detail.replace(/\s+/g, ' ')}`);
+}
+
 class PollError extends Error {
   retryAfterMs: number;
   constructor(message: string, retryAfterMs = 0) {
@@ -216,6 +222,7 @@ async function runCycle() {
   log('fetched', { threads: fetched, newTurns: additions.length, queued: state.queue.length });
 
   const blocked = new Set(state.queue.filter(turn => turn.status === 'uncertain').map(turn => turn.thread));
+  if (blocked.size) log('needs-review', { threads: blocked.size, stateFile });
   let sent = 0;
   let attempted = 0;
   let failures = blocked.size;
@@ -224,10 +231,7 @@ async function runCycle() {
   for (const turn of [...state.queue]) {
     if (stopping) break;
     if (skip.has(turn.thread)) continue;
-    if (blocked.has(turn.thread)) {
-      if (turn.status === 'uncertain') log('needs-review', { threadId: turn.thread, questionAnswerId: turn.id, stateFile });
-      continue;
-    }
+    if (blocked.has(turn.thread)) continue;
     if (attempted >= maxTurns) break;
     attempted++;
     turn.status = 'sending';
@@ -239,6 +243,8 @@ async function runCycle() {
     }
     const started = Date.now();
     let rateLimited = false;
+    let responseStatus: number | undefined;
+    let failureMessage: string | undefined;
     try {
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (process.env.MASTRA_AUTH_TOKEN) headers.Authorization = `Bearer ${process.env.MASTRA_AUTH_TOKEN}`;
@@ -249,6 +255,7 @@ async function runCycle() {
           memory: { thread: turn.thread, resource: turn.resource },
         }),
       });
+      responseStatus = response.status;
       if (!response.ok) {
         rateLimited = response.status === 429;
         retryAfterMs = Math.max(retryAfterMs, retryAfter(response));
@@ -257,26 +264,26 @@ async function runCycle() {
         await response.body?.cancel();
         throw new Error(`Mastra POST: HTTP ${response.status}`);
       }
-      const result = await response.json() as { text?: string; finishReason?: string };
-      if (typeof result.text !== 'string' || !result.text.trim() || result.finishReason === 'error') {
-        throw new Error('Mastra returned no usable answer.');
-      }
+      // Finish receiving the response; answer quality is evaluated in Mastra.
+      await response.arrayBuffer();
     } catch (error) {
+      failureMessage = (error as Error).message;
       if (turn.status === 'sending') turn.status = 'uncertain';
       blocked.add(turn.thread);
       failures++;
       retry = true;
       await save();
-      log('failed', { threadId: turn.thread, questionAnswerId: turn.id, status: turn.status, error: (error as Error).message });
       if (rateLimited) break;
       continue;
+    } finally {
+      logQuestion(responseStatus === undefined ? 'ERROR' : String(responseStatus), turn.question,
+        failureMessage ?? `${((Date.now() - started) / 1_000).toFixed(1)}s`);
     }
     // Checkpoint each successful turn. A disk failure must stop the run here.
     state.completed[turn.id] = true;
     state.queue = state.queue.filter(item => item.id !== turn.id);
     await save();
     sent++;
-    log('replayed', { threadId: turn.thread, questionAnswerId: turn.id, seconds: (Date.now() - started) / 1_000 });
   }
   log('finished', { sent, remaining: state.queue.length, failures });
   return { failures, retry, retryAfterMs };
