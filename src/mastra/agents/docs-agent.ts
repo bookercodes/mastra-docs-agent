@@ -1,5 +1,4 @@
 import { Agent } from '@mastra/core/agent';
-import { PromptInjectionDetector } from '@mastra/core/processors';
 import { Memory } from '@mastra/memory';
 import { readDocs, searchDocs } from '../tools/docs-tools';
 import { toneScorer } from '../scorers/tone-scorer';
@@ -38,14 +37,6 @@ offer to help with a Mastra question without calling tools.`,
     ],
   },
   defaultOptions: { maxSteps: 8 },
-  inputProcessors: [
-    new PromptInjectionDetector({
-      model: 'mastra/openai/gpt-5-nano',
-      strategy: 'block',
-      errorStrategy: 'strict',
-      lastMessageOnly: true,
-    }),
-  ],
   memory: new Memory({ options: { lastMessages: 10 } }),
   tools: { searchDocs, readDocs },
   scorers: {

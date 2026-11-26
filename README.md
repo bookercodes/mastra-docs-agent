@@ -51,10 +51,6 @@ Additional exporters read their configuration from `.env` locally or your deploy
 
 Each exporter stays disabled until its required configuration is present. For Arize Phoenix instead of AX, set `PHOENIX_COLLECTOR_ENDPOINT` and optionally `PHOENIX_API_KEY` and `PHOENIX_PROJECT_NAME`, leaving the Arize AX variables unset.
 
-## Abuse guardrail
-
-The built-in `PromptInjectionDetector` checks the latest message using `mastra/openai/gpt-5-nano` and its default detection instructions. Detected attacks or detector failures block the run with a Mastra tripwire.
-
 ## Reference answer quality
 
 Select **Reference Answer Quality** in a Mastra dataset experiment to evaluate essential coverage and agreement with each item's `groundTruth`. It uses GPT-6 Astra and scores PASS = 1, PARTIAL = 0.5, FAIL = 0; use 1 as the experiment's pass threshold. Missing or unusable questions/references are skipped. An empty final answer fails when the reference is usable.
