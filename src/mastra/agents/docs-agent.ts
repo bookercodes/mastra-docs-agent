@@ -2,6 +2,7 @@ import { Agent } from '@mastra/core/agent';
 import { Memory } from '@mastra/memory';
 import { readDocs, searchDocs } from '../tools/docs-tools';
 import { toneScorer } from '../scorers/tone-scorer';
+import { userFrustrationScorer } from '../scorers/user-frustration-scorer';
 import { answerSimilarityScorer } from '../scorers/answer-similarity-scorer';
 
 export const docsAgent = new Agent({
@@ -41,6 +42,7 @@ offer to help with a Mastra question without calling tools.`,
   tools: { searchDocs, readDocs },
   scorers: {
     tone: { scorer: toneScorer, sampling: { type: 'ratio', rate: 1 } },
+    userFrustration: { scorer: userFrustrationScorer, sampling: { type: 'ratio', rate: 1 } },
     // Available for experiments; zero sampling prevents live execution.
     answerSimilarity: { scorer: answerSimilarityScorer, sampling: { type: 'ratio', rate: 0 } },
   },

@@ -10,6 +10,7 @@ import { MastraPlatformExporter, MastraStorageExporter, Observability } from '@m
 import { docsAgent } from './agents/docs-agent';
 import { readDocs, searchDocs } from './tools/docs-tools';
 import { toneScorer } from './scorers/tone-scorer';
+import { userFrustrationClassifier, userFrustrationScorer } from './scorers/user-frustration-scorer';
 import { answerSimilarityScorer } from './scorers/answer-similarity-scorer';
 import { referenceAnswerQualityScorer } from './scorers/reference-answer-quality-scorer';
 
@@ -34,7 +35,8 @@ export const storage = process.env.NODE_ENV === 'development'
 export const mastra = new Mastra({
   agents: { docsAgent },
   tools: { searchDocs, readDocs },
-  scorers: { toneScorer, answerSimilarityScorer, referenceAnswerQualityScorer },
+  classifiers: { userFrustrationClassifier },
+  scorers: { toneScorer, userFrustrationScorer, answerSimilarityScorer, referenceAnswerQualityScorer },
   storage,
   observability: new Observability({
     configs: {

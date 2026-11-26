@@ -19,6 +19,7 @@
     "node": ">=22.13.0"
   },
   "dependencies": {
+    "@ai-sdk/openai": "^4.0.125",
     "@hono/node-server": "^2.1.11",
     "@langfuse/client": "^6.1.1",
     "@langfuse/otel": "^6.1.1",
